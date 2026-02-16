@@ -1,22 +1,152 @@
 <!DOCTYPE html>
-<html>
-  <head>
-  <title>Add User</title>
-  <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
     <div class="container">
-      <h2>Add User</h2>
+        <h2 id="formTitle">Add User</h2>
+        <form id="userForm">
+            <input type="hidden" id="userId">
+            <input type="text" id="userName" placeholder="Full Name" required>
+            <input type="email" id="userEmail" placeholder="Email Address" required>
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary" id="submitBtn" style="flex: 1;">Add User</button>
+                <button type="button" class="btn btn-danger" id="cancelBtn" style="display: none; flex: 1;">Cancel</button>
+            </div>
+        </form>
 
-  
-    <form action="http://localhost:3000/add-user" method="POST">
-      <input type="text" name="name" placeholder="Enter Name" required>
-      <input type="email" name="email" placeholder="Enter Email" required>
-      <button type="submit">Submit</button>
-      </form>
-
+        <div class="user-list-section">
+            <h2>Current Users</h2>
+            <ul id="userList">
+                <li class="loading">Loading users...</li>
+            </ul>
+        </div>
     </div>
 
-  </body>
+    <script>
+        const userForm = document.getElementById('userForm');
+        const userList = document.getElementById('userList');
+        const submitBtn = document.getElementById('submitBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const formTitle = document.getElementById('formTitle');
+        const userIdInput = document.getElementById('userId');
+        const userNameInput = document.getElementById('userName');
+        const userEmailInput = document.getElementById('userEmail');
+
+        let isEditing = false;
+
+        async function fetchUsers() {
+            try {
+                const response = await fetch('/users');
+                const users = await response.json();
+                
+                if (users.length === 0) {
+                    userList.innerHTML = '<li class="loading">No users found.</li>';
+                    return;
+                }
+
+                userList.innerHTML = users.map(user => `
+                    <li class="user-item">
+                        <div class="user-info">
+                            <span class="user-name">${user.name}</span>
+                            <span class="user-email">${user.email}</span>
+                        </div>
+                        <div class="user-actions">
+                            <button class="btn btn-warning" onclick="prepareEdit(${user.id}, '${user.name.replace(/'/g, "\\'")}', '${user.email.replace(/'/g, "\\'")}')">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                        </div>
+                    </li>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching users:', error);
+                userList.innerHTML = '<li class="loading" style="color: #ef4444;">Error loading users.</li>';
+            }
+        }
+
+        function prepareEdit(id, name, email) {
+            isEditing = true;
+            userIdInput.value = id;
+            userNameInput.value = name;
+            userEmailInput.value = email;
+            
+            formTitle.innerText = 'Update User';
+            submitBtn.innerText = 'Update User';
+            submitBtn.classList.replace('btn-primary', 'btn-warning');
+            cancelBtn.style.display = 'block';
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            isEditing = false;
+            userForm.reset();
+            userIdInput.value = '';
+            formTitle.innerText = 'Add User';
+            submitBtn.innerText = 'Add User';
+            submitBtn.classList.add('btn-primary');
+            submitBtn.classList.remove('btn-warning');
+            cancelBtn.style.display = 'none';
+        }
+
+        cancelBtn.onclick = resetForm;
+
+        async function deleteUser(id) {
+            if (!confirm('Are you sure you want to delete this user?')) return;
+            
+            try {
+                const response = await fetch(`/users/${id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    fetchUsers();
+                } else {
+                    const result = await response.json();
+                    alert(result.error || 'Failed to delete user');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Connection error while deleting user');
+            }
+        }
+
+        userForm.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const name = userNameInput.value;
+            const email = userEmailInput.value;
+            const id = userIdInput.value;
+            
+            const url = isEditing ? `/users/${id}` : '/add-user';
+            const method = isEditing ? 'PUT' : 'POST';
+            
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ name, email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resetForm();
+                    fetchUsers();
+                } else {
+                    alert(result.error || 'Operation failed');
+                }
+            } catch (error) {
+                console.error('Operation error:', error);
+                alert('Connection error');
+            }
+        };
+
+        window.onload = fetchUsers;
+    </script>
+</body>
 </html>
